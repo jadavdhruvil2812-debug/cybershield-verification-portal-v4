@@ -27,10 +27,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full scroll-smooth`}
-    >
+   <html
+  lang="en"
+  data-scroll-behavior="smooth"
+  className={`${geistSans.variable} ${geistMono.variable} h-full scroll-smooth`}
+>
       <body className="min-h-screen bg-slate-950 text-white flex flex-col">
         <Navbar />
 
