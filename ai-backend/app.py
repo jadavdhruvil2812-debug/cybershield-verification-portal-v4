@@ -10,10 +10,12 @@ from typing import Any, Dict
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
+from fastapi import UploadFile, File
 
 from services.ocr_service import extract_text_from_image
 from services.predictor import predict_sms
 from services.url_analyzer import analyze_url_reputation
+from services.qr_analyzer import analyze_qr_image
 
 logging.basicConfig(
     level=logging.INFO,
@@ -148,3 +150,29 @@ def analyze_url(data: URLRequest) -> Dict[str, Any]:
     if not data.url or not data.url.strip():
         raise HTTPException(status_code=400, detail="URL field is empty or missing.")
     return analyze_url_reputation(data.url.strip())
+# =====================================
+# QR Code Safety Scanner
+# =====================================
+
+@app.post("/analyze-qr")
+async def analyze_qr(
+    file: UploadFile = File(...)
+):
+    """
+    Upload QR image and analyze safety.
+    """
+
+    try:
+        image_bytes = await file.read()
+
+        result = await analyze_qr_image(
+            image_bytes
+        )
+
+        return result
+
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }

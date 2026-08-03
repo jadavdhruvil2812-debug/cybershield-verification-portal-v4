@@ -96,13 +96,53 @@ export default function VerifyPage() {
         body: JSON.stringify({ sms }),
       });
 
-      const data = await res.json();
+     const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.detail || data.message || "SMS verification failed.");
-      }
+if (!res.ok) {
+  throw new Error(data.detail || data.message || "SMS verification failed.");
+}
 
-      setResult(data);
+setResult(data);
+
+// History me save karo
+try {
+  await fetch("/api/history", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      type: "SMS",
+      input: sms,
+      result:
+        data.prediction === "SAFE" ||
+        data.prediction === "SCAM" ||
+        data.prediction === "SUSPICIOUS"
+          ? data.prediction
+          : data.prediction === "Ham"
+          ? "SAFE"
+          : "SCAM",
+      confidence: Number(data.confidence) || 0,
+      details: data.explanation || "",
+    }),
+  });
+} catch (err) {
+  console.error("History Save Error:", err);
+}
+      await fetch("/api/history", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    type: "SMS",
+    input: sms,
+    result: data.prediction,
+    confidence: data.confidence,
+    threatScore: data.threat_score,
+    risk: data.risk,
+  }),
+});
     } catch (err: unknown) {
       console.error("SMS Verification Error:", err);
       const errorMessage =
@@ -128,11 +168,10 @@ export default function VerifyPage() {
       const formData = new FormData();
       formData.append("file", image);
 
-      const res = await fetch("http://127.0.0.1:8000/predict-image", {
-        method: "POST",
-        body: formData,
-      });
-
+      const res = await fetch("http://127.0.0.1:8000/verify-image", {
+  method: "POST",
+  body: formData,
+});
       const data = await res.json();
 
       if (!res.ok) {
@@ -145,6 +184,20 @@ export default function VerifyPage() {
         setSms(parsedText);
       }
       setResult(data);
+      await fetch("/api/history", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    type: "IMAGE",
+    input: parsedText,
+    result: data.prediction,
+    confidence: data.confidence,
+    threatScore: data.threat_score,
+    risk: data.risk,
+  }),
+});
     } catch (err: unknown) {
       console.error("Image Verification Error:", err);
       const errorMessage =

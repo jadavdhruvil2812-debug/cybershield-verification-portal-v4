@@ -8,3 +8,6 @@ joblib
 pytesseract
 Pillow
 requests
+opencv-python
+pyzbar
+numpy

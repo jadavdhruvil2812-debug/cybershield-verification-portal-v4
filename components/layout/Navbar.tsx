@@ -2,16 +2,50 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, Shield, X } from "lucide-react";
+import {
+  Menu,
+  Shield,
+  X,
+  MessageSquare,
+  Globe,
+  Home,
+  MessageCircle,
+  Info,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { name: "Home", href: "/" },
-  { name: "Verify SMS", href: "/verify" },
-  { name: "Feedback", href: "/feedback" },
-  { name: "About", href: "/about" },
+  {
+    name: "Home",
+    href: "/",
+    icon: Home,
+  },
+  {
+    name: "Verify SMS",
+    href: "/verify",
+    icon: MessageSquare,
+  },
+  {
+    name: "Verify URL",
+    href: "/verify-url",
+    icon: Globe,
+  },
+  {
+    name: "Feedback",
+    href: "/feedback",
+    icon: MessageCircle,
+  },
+  {
+    name: "About",
+    href: "/about",
+    icon: Info,
+  },
+  {
+    name: "QR Scanner",
+    href: "/verify-qr",
+    icon: Shield,
+  }
 ];
-
 export default function Navbar() {
   const [open, setOpen] = useState(false);
 
@@ -33,15 +67,20 @@ export default function Navbar() {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-8">
-          {navItems.map((item) => (
-            <Link
-              key={item.name}
-              href={item.href}
-              className="text-sm font-medium text-slate-300 transition hover:text-cyan-400"
-            >
-              {item.name}
-            </Link>
-          ))}
+         {navItems.map((item) => {
+  const Icon = item.icon;
+
+  return (
+    <Link
+      key={item.name}
+      href={item.href}
+      className="flex items-center gap-2 text-sm font-medium text-slate-300 transition hover:text-cyan-400"
+    >
+      <Icon size={16} />
+      {item.name}
+    </Link>
+  );
+})}
         </nav>
 
         {/* Desktop Buttons */}
@@ -72,17 +111,21 @@ export default function Navbar() {
       {open && (
         <div className="border-t border-slate-800 bg-slate-950 md:hidden">
           <div className="flex flex-col p-5">
-            {navItems.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className="py-3 text-slate-300 hover:text-cyan-400"
-              >
-                {item.name}
-              </Link>
-            ))}
+            {navItems.map((item) => {
+  const Icon = item.icon;
 
+  return (
+    <Link
+      key={item.name}
+      href={item.href}
+      onClick={() => setOpen(false)}
+      className="flex items-center gap-3 py-3 text-slate-300 hover:text-cyan-400"
+    >
+      <Icon size={18} />
+      {item.name}
+    </Link>
+  );
+})}
             <Link
               href="/login"
               onClick={() => setOpen(false)}
