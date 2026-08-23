@@ -1,0 +1,36 @@
+
+CyberShield Dataset Report
+==========================
+
+Total Messages : 7641
+
+Spam Messages : 1597
+
+Ham Messages : 6044
+
+Spam Percentage :
+20.9 %
+
+Ham Percentage :
+79.1 %
+
+Average Length :
+87.78
+
+Average Words :
+16.2
+
+Messages With URL :
+499
+
+Messages With OTP :
+624
+
+Messages With Phone :
+521
+
+Messages With Email :
+8
+
+Average Scam Keywords :
+0.32

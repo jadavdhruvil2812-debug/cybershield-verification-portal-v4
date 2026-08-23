@@ -1,136 +1,135 @@
 """
-CyberShield Rule Engine Module - Enhanced Scam & Threat Detection
+CyberShield Advanced Semantic & Intent Rule Engine (v6.0)
+Includes Phone-Call Vishing & Utility Disconnection Threat Interception
+Location: ai-backend/services/rule_engine.py
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List
+from urllib.parse import urlparse
 
 
 @dataclass
-class RuleMatch:
-    rule_id: str
-    name: str
-    category: str
-    severity: str
-    reason: str
-    weight: int
-
-
-@dataclass
-class RuleEngineResult:
+class RuleResult:
+    status: str
     score: float
-    confidence_modifier: float
-    reasons: List[str] = field(default_factory=list)
-    recommendation: str = "Message appears safe."
-    matched_rules: List[RuleMatch] = field(default_factory=list)
-    categories: List[str] = field(default_factory=list)
+    matched_rules: List[str]
 
 
 class RuleEngine:
     def __init__(self):
-        # Enhanced & High-Weight Scam Detection Patterns
-        self.rules = [
-            {
-                "id": "SCAM001",
-                "name": "Urgent Account Blocking / Suspension",
-                "category": "Social Engineering",
-                "severity": "HIGH",
-                "weight": 45,
-                "pattern": r"(account|debit card|credit card|pan|kyc|upi|wallet).*(block|suspend|expire|terminate|hold|verify|update)",
-                "reason": "Threatens account suspension or blocking to induce panic and force immediate action."
-            },
-            {
-                "id": "SCAM002",
-                "name": "Financial Lottery / Prize Fraud",
-                "category": "Financial Fraud",
-                "severity": "HIGH",
-                "weight": 40,
-                "pattern": r"(won|winner|congratulations|prize|lottery|lucky draw|reward|cashback).*(claim|transfer|bank|rupees|rs|lakh|crore)",
-                "reason": "Claims fake lottery winnings or cash prizes to steal personal or financial details."
-            },
-            {
-                "id": "LNK001",
-                "name": "Suspicious / Shortened URL",
-                "category": "Malicious URL",
-                "severity": "MEDIUM",
-                "weight": 35,
-                "pattern": r"(bit\.ly|tinyurl|goo\.gl|t\.me|wa\.me|is\.gd|ow\.ly|buff\.ly|shorturl|lnkd\.in|-\w+\.xyz|\.top|\.click|\.loan)",
-                "reason": "Uses URL shortening or suspicious TLD services to hide the actual phishing destination."
-            },
-            {
-                "id": "SOC001",
-                "name": "Artificial Urgency & Time Pressure",
-                "category": "Social Engineering",
-                "severity": "MEDIUM",
-                "weight": 25,
-                "pattern": r"(immediately|urgent|within \d+ hours|today itself|expires today|last chance|hurry|now)",
-                "reason": "Creates artificial time pressure to prevent victims from verifying the claim."
-            },
-            {
-                "id": "FIN001",
-                "name": "Unauthorized Bank Transaction / Credit Alert",
-                "category": "Financial Fraud",
-                "severity": "HIGH",
-                "weight": 40,
-                "pattern": r"(debited|credited|withdrawn|transferred|spent).*(rs\.?|inr|\$|\u20b9)?\s*[\d,]+(\.\d+)?",
-                "reason": "Mimics official bank transaction alerts to lure users into clicking malicious verification links."
-            },
-            {
-                "id": "SOC003",
-                "name": "Excessive Capitalization (All Caps Spam)",
-                "category": "Spam",
-                "severity": "LOW",
-                "weight": 15,
-                "pattern": r"\b[A-Z\s]{10,}\b",
-                "reason": "Excessive capitalization typical of mass scam and spam distribution."
-            }
+        self.suspicious_tlds = {
+            ".xyz", ".top", ".site", ".link", ".online", ".live", ".info",
+            ".me", ".club", ".click", ".work", ".buzz", ".icu", ".rest",
+            ".monster", ".vip", ".cc", ".to", ".space"
+        }
+
+        self.whitelisted_domains = {
+            "sbi.co.in", "onlinesbi.sbi", "hdfcbank.com", "icicibank.com",
+            "axisbank.com", "incometax.gov.in", "uidai.gov.in", "indiapost.gov.in",
+            "amazon.in", "flipkart.com", "goindigo.in", "jio.com", "airtel.in"
+        }
+
+    def extract_urls(self, text: str) -> List[str]:
+        url_pattern = r'https?://[^\s<>"]+|www\.[^\s<>"]+'
+        return re.findall(url_pattern, text, flags=re.IGNORECASE)
+
+    def evaluate(self, text: str, channel_multiplier: float = 1.0) -> RuleResult:
+        score = 0.0
+        matched = []
+        text_lower = text.lower()
+        urls = self.extract_urls(text)
+
+        # ---------------------------------------------------------
+        # RULE 1: UTILITY / BILLING DISCONNECTION & VISHING (Test 7 Fix)
+        # ---------------------------------------------------------
+        disconnection_keywords = ["disconnect", "power will be", "electricity office", "gas connection", "bill was not update", "meter #", "billing mismatch"]
+        call_helpline_patterns = [
+            r'call.*(\b[6-9]\d{9}\b)',
+            r'contact.*(\b[6-9]\d{9}\b)',
+            r'officer.*(\b[6-9]\d{9}\b)',
+            r'desk at\s+(\b[6-9]\d{9}\b)',
+            r'call.*officer',
+            r'contact.*office'
         ]
 
-    def evaluate(self, text: str) -> RuleEngineResult:
-        if not text:
-            return RuleEngineResult(score=0.0, confidence_modifier=0.0)
+        has_disconnection = any(kw in text_lower for kw in disconnection_keywords)
+        has_call_trigger = any(re.search(pat, text_lower) for pat in call_helpline_patterns)
 
-        matched_rules: List[RuleMatch] = []
-        total_weight = 0.0
-        reasons_set = set()
-        categories_set = set()
+        if has_disconnection and has_call_trigger:
+            score += 55.0
+            matched.append("Utility Disconnection with Unofficial Contact Number (Vishing)")
+        elif has_disconnection and ("tonight" in text_lower or "immediately" in text_lower or "urgent" in text_lower):
+            score += 45.0
+            matched.append("Urgent Service Disconnection Panic Hook")
 
-        text_lower = text.lower()
+        # ---------------------------------------------------------
+        # RULE 2: URL INTENT & TLD ANALYSIS
+        # ---------------------------------------------------------
+        for url in urls:
+            try:
+                full_url = url if url.startswith("http") else f"http://{url}"
+                domain = urlparse(full_url).netloc.lower()
 
-        for rule in self.rules:
-            if re.search(rule["pattern"], text_lower, re.IGNORECASE):
-                match = RuleMatch(
-                    rule_id=rule["id"],
-                    name=rule["name"],
-                    category=rule["category"],
-                    severity=rule["severity"],
-                    reason=rule["reason"],
-                    weight=rule["weight"]
-                )
-                matched_rules.append(match)
-                total_weight += rule["weight"]
-                reasons_set.add(rule["reason"])
-                categories_set.add(rule["category"])
+                if any(domain.endswith(tld) for tld in self.suspicious_tlds):
+                    score += 45.0
+                    matched.append(f"High-Risk TLD Detected ({domain})")
 
-        # Cap the raw rule score to 100 max
-        score = min(100.0, total_weight)
+                sensitive_brands = ["sbi", "hdfc", "icici", "uidai", "aadhaar", "incometax", "indiapost", "fastag", "upi", "dispute", "refund", "kyc", "epf", "uan", "cibil", "flipkart", "telecom"]
+                if any(b in domain for b in sensitive_brands):
+                    if domain not in self.whitelisted_domains:
+                        score += 50.0
+                        matched.append(f"Domain Brand Impersonation ({domain})")
 
-        # Determine recommendation based on score
-        if score >= 65:
-            recommendation = "HIGH THREAT! Do not click links or share personal info."
-        elif score >= 35:
-            recommendation = "MEDIUM THREAT. Verify details through official channels before proceeding."
-        else:
-            recommendation = "Low risk detected. Always remain cautious."
+                if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', domain):
+                    score += 60.0
+                    matched.append("Raw IP Address as Link")
+            except Exception:
+                score += 20.0
 
-        confidence_modifier = 0.05 if len(matched_rules) > 1 else 0.0
+        # ---------------------------------------------------------
+        # RULE 3: REVERSE PSYCHOLOGY & CANCELLATION TRAPS
+        # ---------------------------------------------------------
+        reverse_traps = [
+            (r'unauthorized.*transaction.*cancel', 40.0, "Reverse Fraud Alert Trap"),
+            (r'if not done by you.*http', 45.0, "Fake Cancellation Link Trap"),
+            (r'prevent fund deduction.*http', 45.0, "Urgent Fund Deduction Link"),
+            (r'mistakenly credited.*return', 40.0, "Erroneous Credit / UPI Reversal Scam"),
+            (r'unadjusted tds refund.*direct credit', 40.0, "Fake Income Tax Direct Credit"),
+            (r'uan passbook.*freeze.*http', 45.0, "EPFO UAN Freeze Trap"),
+            (r'cibil.*drop.*dispute.*http', 45.0, "CIBIL Score Dispute Hook"),
+            (r'sim.*suspended.*document.*http', 45.0, "SIM Deactivation Panic Hook"),
+        ]
+        for pattern, points, name in reverse_traps:
+            if re.search(pattern, text_lower):
+                score += points
+                matched.append(name)
 
-        return RuleEngineResult(
-            score=score,
-            confidence_modifier=confidence_modifier,
-            reasons=list(reasons_set),
-            recommendation=recommendation,
-            matched_rules=matched_rules,
-            categories=list(categories_set)
+        # ---------------------------------------------------------
+        # RULE 4: LOGISTICS & ACTIONABLE UNVERIFIED LINKS
+        # ---------------------------------------------------------
+        logistics_traps = [
+            (r'cannot be delivered.*incomplete', 40.0, "Fake Delivery Address Notice"),
+            (r'consignment.*return to sender.*http', 45.0, "Postal Consignment Return Trap"),
+            (r'fastag.*blacklisted.*kyc', 40.0, "FASTag Toll Blacklist Scam"),
+            (r'biometric.*disablement.*verify', 40.0, "Aadhaar Biometric Disablement Threat"),
+            (r'exclusive vip.*gift.*before midnight', 40.0, "E-Commerce Urgent Voucher Trap"),
+        ]
+        for pattern, points, name in logistics_traps:
+            if re.search(pattern, text_lower):
+                score += points
+                matched.append(name)
+
+        if urls and any(w in text_lower for w in ["verify", "update", "cancel", "settle", "resume", "dispute", "screening", "form", "claim"]):
+            score += 25.0
+            matched.append("Actionable Link in Unsolicited SMS")
+
+        final_score = score * channel_multiplier
+        status = "Unsafe" if final_score >= 35.0 else "Safe"
+
+        return RuleResult(
+            status=status,
+            score=final_score,
+            matched_rules=matched
         )

@@ -10,4 +10,6 @@ Pillow
 requests
 opencv-python
 pyzbar
+tqdm
+openpyxl
 numpy

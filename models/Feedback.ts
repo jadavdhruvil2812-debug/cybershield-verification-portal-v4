@@ -2,6 +2,13 @@ import mongoose, { Schema, models, model } from "mongoose";
 
 const FeedbackSchema = new Schema(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+      index: true,
+    },
+
     name: {
       type: String,
       required: true,

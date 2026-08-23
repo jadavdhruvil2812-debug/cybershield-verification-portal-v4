@@ -2,6 +2,13 @@ import mongoose, { Schema, models, model } from "mongoose";
 
 const HistorySchema = new Schema(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+
     type: {
       type: String,
       required: true,
@@ -34,4 +41,6 @@ const HistorySchema = new Schema(
   }
 );
 
-export default models.History || model("History", HistorySchema);
+const History = models.History || model("History", HistorySchema);
+
+export default History;

@@ -5,85 +5,115 @@ import {
   ShieldCheck,
   Link2,
   QrCode,
-  Mail,
-  KeyRound,
+  ScanSearch,
   History,
+  FileSearch,
 } from "lucide-react";
+
 import FeatureCard from "@/components/features/FeatureCard";
 import SectionTitle from "@/components/common/SectionTitle";
 
 const features = [
   {
     icon: <ShieldCheck className="h-7 w-7" />,
-    title: "AI SMS Verification",
+    title: "AI Threat Verification",
     description:
-      "Paste any SMS or upload a screenshot. AI detects phishing, fake banking messages, scam links, and fraud attempts.",
+      "Verify SMS, URLs, QR codes and images using AI-based threat detection, rule engines, and risk analysis.",
     href: "/verify",
   },
   {
     icon: <Link2 className="h-7 w-7" />,
-    title: "Link Safety Checker",
+    title: "URL Security Analysis",
     description:
-      "Analyze suspicious URLs and identify unsafe or phishing websites before opening them.",
-    href: "/verify-url",
+      "Analyze suspicious links and detect polymorphic phishing endpoints before establishing a connection.",
+    href: "/verify",
   },
   {
     icon: <QrCode className="h-7 w-7" />,
-    title: "QR Code Scanner",
+    title: "QR Code Protection",
     description:
-      "Scan QR codes securely and detect malicious links hidden inside QR codes.",
-    href: "/verify-qr",
+      "Upload QR images to extract and neutralize malicious routing hidden within the matrix data.",
+    href: "/verify",
   },
   {
-    icon: <Mail className="h-7 w-7" />,
-    title: "Email Phishing Checker",
+    icon: <FileSearch className="h-7 w-7" />,
+    title: "OCR Image Verification",
     description:
-      "Detect suspicious emails using AI and identify common phishing indicators.",
-    href: "#",
+      "Extract text payloads from screenshots and images to detect scam messaging via heuristic scanning.",
+    href: "/verify",
   },
   {
-    icon: <KeyRound className="h-7 w-7" />,
-    title: "Password Strength Analyzer",
+    icon: <ScanSearch className="h-7 w-7" />,
+    title: "AI Risk Assessment",
     description:
-      "Evaluate password strength and receive recommendations for stronger security.",
-    href: "#",
+      "Generate detailed threat scores, confidence levels, matched security rules, and AI directives.",
+    href: "/verify",
   },
   {
     icon: <History className="h-7 w-7" />,
-    title: "Scan History",
+    title: "Verification History",
     description:
-      "View your previous verification results and track all scanned messages securely.",
-    href: "#",
+      "Track previous security checks and maintain a secure audit log of all intercepted threats.",
+    href: "/history",
   },
 ];
 
 export default function Features() {
+  // --- Staggered Animation Physics ---
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 30, scale: 0.95 },
+    show: { 
+      opacity: 1, 
+      y: 0, 
+      scale: 1,
+      transition: { type: "spring" as const, stiffness: 300, damping: 24 } 
+    },
+  };
+
   return (
-    <section className="py-24 bg-slate-950">
-      <div className="mx-auto max-w-7xl px-6">
+    <section className="relative w-full py-24">
+      
+      {/* Ambient Background Lighting */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[600px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-600/5 blur-[120px]" />
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        
         <SectionTitle
-          badge="FEATURES"
-          title="Everything You Need To Stay Safe"
-          subtitle="CyberShield provides multiple AI-powered cybersecurity tools designed for students and everyday users."
+          badge="System Capabilities"
+          title="AI-Powered Digital Safety"
+          subtitle="A unified intelligence portal engineered to detect scams, intercept phishing attempts, and neutralize malicious digital content in real-time."
         />
 
         <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ duration: 0.6 }}
-          viewport={{ once: true }}
-          className="grid gap-8 md:grid-cols-2 lg:grid-cols-3"
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: "-100px" }}
+          className="grid gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3"
         >
           {features.map((feature) => (
-            <FeatureCard
-              key={feature.title}
-              icon={feature.icon}
-              title={feature.title}
-              description={feature.description}
-              href={feature.href}
-            />
+            <motion.div key={feature.title} variants={itemVariants} className="h-full">
+              <FeatureCard
+                icon={feature.icon}
+                title={feature.title}
+                description={feature.description}
+                href={feature.href}
+              />
+            </motion.div>
           ))}
         </motion.div>
+
       </div>
     </section>
   );

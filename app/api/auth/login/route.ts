@@ -13,18 +13,24 @@ export async function POST(req: Request) {
 
     if (!email || !password) {
       return NextResponse.json(
-        { message: "Email and password are required." },
+        {
+          success: false,
+          message: "Email and password are required.",
+        },
         { status: 400 }
       );
     }
 
     const user = await User.findOne({
-      email: email.toLowerCase(),
+      email: email.toLowerCase().trim(),
     });
 
     if (!user) {
       return NextResponse.json(
-        { message: "Invalid email or password." },
+        {
+          success: false,
+          message: "Invalid email or password.",
+        },
         { status: 401 }
       );
     }
@@ -36,31 +42,39 @@ export async function POST(req: Request) {
 
     if (!validPassword) {
       return NextResponse.json(
-        { message: "Invalid email or password." },
+        {
+          success: false,
+          message: "Invalid email or password.",
+        },
         { status: 401 }
       );
     }
 
     const token = generateToken({
-      id: user._id,
+      id: user._id.toString(),
       email: user.email,
     });
 
     return NextResponse.json({
       success: true,
+      message: "Login successful.",
       token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("LOGIN ERROR:", error);
 
     return NextResponse.json(
-      { message: "Internal Server Error" },
+      {
+        success: false,
+        message: "Internal Server Error",
+      },
       { status: 500 }
     );
   }

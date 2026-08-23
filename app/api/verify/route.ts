@@ -1,36 +1,67 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-// It's a good practice to use an environment variable for your API URL
-const API_URL = process.env.API_URL || 'http://127.0.0.1:8000/predict';
+const API_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { sms } = body;
+    const sms = (body.payload || body.sms || "").toString().trim();
 
     if (!sms) {
-      return NextResponse.json({ message: 'SMS content is required' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "SMS is required",
+          status: "Safe",
+          recommendation: "No message text provided.",
+        },
+        { status: 400 }
+      );
     }
 
-    const apiRes = await fetch(API_URL, {
-      method: 'POST',
+    // Call FastAPI Backend
+    const response = await fetch(`${API_URL}/verify-sms`, {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ sms }),
+      cache: "no-store",
     });
 
-    const data = await apiRes.json();
+    // Check if the response is valid JSON before parsing
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      const rawText = await response.text();
+      console.error(
+        `FastAPI returned non-JSON response (Status: ${response.status}):`,
+        rawText.slice(0, 300) // Log first 300 characters of HTML error
+      );
 
-    if (!apiRes.ok) {
-      // Forward the error from the backend
-      return NextResponse.json(data, { status: apiRes.status });
+      return NextResponse.json(
+        {
+          error: `FastAPI endpoint returned HTTP ${response.status}`,
+          status: "Suspicious",
+          recommendation: "Backend service returned an invalid response. Please verify FastAPI routes.",
+        },
+        { status: response.status || 500 }
+      );
     }
 
-    return NextResponse.json(data, { status: 200 });
+    const data = await response.json();
 
-  } catch (error) {
-    console.error('API Route Error:', error);
-    return NextResponse.json({ message: 'An internal server error occurred.' }, { status: 500 });
+    return NextResponse.json(data, {
+      status: response.status,
+    });
+  } catch (err: any) {
+    console.error("SMS Verify API Error:", err?.message || err);
+
+    return NextResponse.json(
+      {
+        error: "Unable to connect to AI Backend. Ensure FastAPI is running on port 8000.",
+        status: "Safe",
+        recommendation: "Service temporarily unavailable. Verify server status.",
+      },
+      { status: 500 }
+    );
   }
 }

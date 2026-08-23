@@ -1,6 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  MessageSquare, 
+  Send, 
+  Loader2, 
+  CheckCircle2, 
+  AlertCircle, 
+  Star, 
+  User, 
+  Mail, 
+  ChevronDown,
+  Sparkles
+} from "lucide-react";
 
 export default function FeedbackPage() {
   const [form, setForm] = useState({
@@ -18,13 +31,11 @@ export default function FeedbackPage() {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    setForm({
-      ...form,
-      [e.target.name]:
-        e.target.name === "rating"
-          ? Number(e.target.value)
-          : e.target.value,
-    });
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const setRating = (rating: number) => {
+    setForm({ ...form, rating });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,7 +44,6 @@ export default function FeedbackPage() {
     setLoading(true);
     setSuccess("");
     setError("");
-    
 
     try {
       const res = await fetch("/api/feedback", {
@@ -47,13 +57,11 @@ export default function FeedbackPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "Failed to submit feedback.");
+        throw new Error(data.message || "Failed to submit telemetry.");
       }
 
-      setSuccess("✅ Thank you! Your feedback has been submitted.");
-      setTimeout(() => {
-  setSuccess("");
-}, 3000);
+      setSuccess("Transmission successful. Thank you for securing the grid.");
+      setTimeout(() => setSuccess(""), 4000);
 
       setForm({
         name: "",
@@ -65,168 +73,244 @@ export default function FeedbackPage() {
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
-       setTimeout(() => {
-  setError("");
-}, 3000);
       } else {
-        setError("Something went wrong.");
-        setTimeout(() => {
-  setError("");
-}, 3000);
+        setError("System fault. Unable to establish connection.");
       }
+      setTimeout(() => setError(""), 4000);
     } finally {
       setLoading(false);
     }
   };
 
+  // --- Animation Variants ---
+  // typed as any to avoid strict framer-motion Transition typing issues in TS
+  const containerVariants: any = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+
+  const itemVariants: any = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-4xl px-6 py-16">
-      <h1 className="mb-3 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-4xl font-bold text-transparent">
-  Feedback Center
-</h1>
+    <div className="min-h-screen bg-[#09090b] text-slate-200 font-sans selection:bg-cyan-500/30 pb-20">
+      
+      {/* Background Cyber-Grid */}
+      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]" />
+        <div className="absolute left-1/2 top-0 -z-10 h-[600px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500 opacity-[0.05] blur-[120px]" />
+      </div>
 
-        <p className="text-slate-400 mb-10">
-          Help us improve CyberShield by sharing your feedback.
-        </p>
+      <div className="relative z-10 mx-auto max-w-3xl px-4 sm:px-6 pt-24">
+        
+        {/* Header */}
+        <div className="mb-10 text-center">
+          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 mb-4 shadow-[0_0_30px_rgba(6,182,212,0.15)]">
+            <MessageSquare className="h-8 w-8 text-cyan-400" />
+          </div>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight mb-3">
+            Intelligence <span className="text-cyan-400">Feedback</span>
+          </h1>
+          <p className="text-sm text-zinc-400 max-w-lg mx-auto">
+            Submit bug reports, feature requests, or general system feedback to help improve the CyberShield terminal.
+          </p>
+        </div>
 
-      <form
-  onSubmit={handleSubmit}
-  className="space-y-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-8 shadow-2xl transition-all duration-300 hover:border-cyan-500"
->
-  <div className="grid gap-6 md:grid-cols-2">
-    <div>
-      <label className="mb-2 block text-sm font-medium">
-        Full Name
-      </label>
+        {/* Feedback Form Card */}
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="rounded-[24px] border border-white/[0.05] bg-[#09090b]/80 p-1 shadow-2xl backdrop-blur-2xl"
+        >
+          <form onSubmit={handleSubmit} className="rounded-[20px] bg-zinc-900/40 p-6 md:p-8 space-y-6">
+            
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Name Field */}
+              <motion.div variants={itemVariants} className="space-y-2">
+                <label className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 pl-1">
+                  Operator Name
+                </label>
+                <div className="relative group">
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-cyan-400">
+                    <User size={16} />
+                  </div>
+                  <input
+                    type="text"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    required
+                    placeholder="John Doe"
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-950/50 py-3 pl-10 pr-4 text-sm text-white placeholder-zinc-600 outline-none transition-all focus:border-cyan-500/50 focus:bg-black focus:ring-1 focus:ring-cyan-500/50"
+                  />
+                </div>
+              </motion.div>
 
-      <input
-        type="text"
-        name="name"
-        value={form.name}
-        onChange={handleChange}
-        required
-        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-cyan-500"
-      />
-    </div>
+              {/* Email Field */}
+              <motion.div variants={itemVariants} className="space-y-2">
+                <label className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 pl-1">
+                  Comm Link (Email)
+                </label>
+                <div className="relative group">
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-cyan-400">
+                    <Mail size={16} />
+                  </div>
+                  <input
+                    type="email"
+                    name="email"
+                    value={form.email}
+                    onChange={handleChange}
+                    required
+                    placeholder="operator@cybershield.io"
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-950/50 py-3 pl-10 pr-4 text-sm text-white placeholder-zinc-600 outline-none transition-all focus:border-cyan-500/50 focus:bg-black focus:ring-1 focus:ring-cyan-500/50"
+                  />
+                </div>
+              </motion.div>
+            </div>
 
-    <div>
-      <label className="mb-2 block text-sm font-medium">
-        Email
-      </label>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Category Field */}
+              <motion.div variants={itemVariants} className="space-y-2">
+                <label className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 pl-1">
+                  Report Classification
+                </label>
+                <div className="relative group">
+                  <select
+                    name="category"
+                    value={form.category}
+                    onChange={handleChange}
+                    className="w-full appearance-none rounded-xl border border-zinc-800 bg-zinc-950/50 py-3 pl-4 pr-10 text-sm text-white outline-none transition-all focus:border-cyan-500/50 focus:bg-black focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+                  >
+                    <option value="General">General Feedback</option>
+                    <option value="Bug Report">System Bug / Error</option>
+                    <option value="Feature Request">Feature Request</option>
+                    <option value="Security">Security Vulnerability</option>
+                    <option value="UI/UX">Interface (UI/UX)</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none group-focus-within:text-cyan-400 transition-colors">
+                    <ChevronDown size={16} />
+                  </div>
+                </div>
+              </motion.div>
 
-      <input
-        type="email"
-        name="email"
-        value={form.email}
-        onChange={handleChange}
-        required
-        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-cyan-500"
-      />
-    </div>
-  </div>
+              {/* Custom Star Rating */}
+              <motion.div variants={itemVariants} className="space-y-2">
+                <label className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 pl-1">
+                  System Rating
+                </label>
+                <div className="flex h-[46px] items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/50 px-4">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      className="focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <Star 
+                        size={22} 
+                        className={`transition-colors duration-300 ${
+                          form.rating >= star 
+                            ? "text-cyan-400 fill-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]" 
+                            : "text-zinc-700 fill-transparent"
+                        }`} 
+                      />
+                    </button>
+                  ))}
+                  <span className="ml-auto text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                    {form.rating}/5
+                  </span>
+                </div>
+              </motion.div>
+            </div>
 
-  <div>
-    <label className="mb-2 block text-sm font-medium">
-      Category
-    </label>
+            {/* Message Field */}
+            <motion.div variants={itemVariants} className="space-y-2">
+              <label className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 pl-1">
+                Transmission Payload
+              </label>
+              <textarea
+                rows={5}
+                name="message"
+                value={form.message}
+                onChange={handleChange}
+                required
+                placeholder="Detail your findings or requests here..."
+                className="w-full resize-none rounded-xl border border-zinc-800 bg-zinc-950/50 p-4 text-sm text-white placeholder-zinc-600 outline-none transition-all focus:border-cyan-500/50 focus:bg-black focus:ring-1 focus:ring-cyan-500/50"
+              />
+            </motion.div>
 
-    <select
-      name="category"
-      value={form.category}
-      onChange={handleChange}
-      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-cyan-500"
-    >
-      <option>General</option>
-      <option>Bug Report</option>
-      <option>Feature Request</option>
-      <option>Security</option>
-      <option>UI/UX</option>
-      <option>Other</option>
-    </select>
-  </div>
+            {/* Alerts */}
+            <AnimatePresence mode="wait">
+              {success && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, y: -10 }}
+                  animate={{ opacity: 1, height: "auto", y: 0 }}
+                  exit={{ opacity: 0, height: 0, y: -10 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-400">
+                    <CheckCircle2 size={18} className="shrink-0" />
+                    <p className="font-medium">{success}</p>
+                  </div>
+                </motion.div>
+              )}
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, y: -10 }}
+                  animate={{ opacity: 1, height: "auto", y: 0 }}
+                  exit={{ opacity: 0, height: 0, y: -10 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
+                    <AlertCircle size={18} className="shrink-0" />
+                    <p className="font-medium">{error}</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-  <div>
-    <label className="mb-2 block text-sm font-medium">
-      Rating
-    </label>
+            {/* Submit Button */}
+            <motion.div variants={itemVariants} className="pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="group relative w-full overflow-hidden rounded-xl bg-cyan-500 px-4 py-4 text-sm font-bold text-black transition-all hover:bg-cyan-400 disabled:opacity-70 disabled:hover:bg-cyan-500"
+              >
+                <div className="relative z-10 flex items-center justify-center gap-2">
+                  {loading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Transmitting...
+                    </>
+                  ) : (
+                    <>
+                      Transmit Feedback
+                      <Send size={16} className="transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+                    </>
+                  )}
+                </div>
+                {/* Shimmer Effect */}
+                <div className="absolute inset-0 -z-10 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.3)_50%,transparent_75%)] bg-[length:250%_250%] opacity-0 group-hover:animate-shimmer group-hover:opacity-100" />
+              </button>
+            </motion.div>
 
-    <select
-      name="rating"
-      value={form.rating}
-      onChange={handleChange}
-      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-cyan-500"
-    >
-      <option value={5}>⭐⭐⭐⭐⭐ Excellent</option>
-      <option value={4}>⭐⭐⭐⭐ Very Good</option>
-      <option value={3}>⭐⭐⭐ Good</option>
-      <option value={2}>⭐⭐ Fair</option>
-      <option value={1}>⭐ Poor</option>
-    </select>
-  </div>
+          </form>
+        </motion.div>
 
-  <div>
-    <label className="mb-2 block text-sm font-medium">
-      Your Feedback
-    </label>
-
-    <textarea
-      rows={6}
-      name="message"
-      value={form.message}
-      onChange={handleChange}
-      required
-      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-cyan-500"
-      placeholder="Write your feedback..."
-    />
-  </div>
-
-  {success && (
-    <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-green-400">
-      {success}
-    </div>
-  )}
-
-  {error && (
-    <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-400">
-      {error}
-    </div>
-  )}
-
-  <button
-    type="submit"
-    disabled={loading}
-    className="w-full rounded-xl bg-cyan-500 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-60"
-  >
-   {loading ? (
-  <span className="flex items-center justify-center gap-2">
-    <svg
-      className="h-5 w-5 animate-spin"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-      />
-    </svg>
-    Submitting...
-  </span>
-) : (
-  "Submit Feedback"
-)}
-  </button>
-</form>
+        {/* Footer Note */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6 }}
+          className="mt-8 text-center flex items-center justify-center gap-2 text-xs text-zinc-500"
+        >
+          <Sparkles size={14} className="text-cyan-500/50" />
+          All transmissions are encrypted and analyzed by the CyberShield team.
+        </motion.div>
       </div>
     </div>
   );

@@ -1,77 +1,67 @@
 """
-CyberShield Robust OCR Service.
-Extracts text from images using PyTesseract. Includes safety checks for
-Windows Tesseract installations and handles .webp / .png formats perfectly.
+CyberShield OCR Service Module (Explicit Windows Path)
+Location: ai-backend/services/ocr_service.py
 """
 
-import logging
 import os
-import sys
+import re
+import cv2
+import pytesseract
+from PIL import Image
 
-logger = logging.getLogger(__name__)
+# Direct Absolute Path for Windows Tesseract
+TESSERACT_EXE = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+if os.path.exists(TESSERACT_EXE):
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_EXE
+else:
+    # Alternative path if installed in x86 or user profile
+    alt_path = r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
+    if os.path.exists(alt_path):
+        pytesseract.pytesseract.tesseract_cmd = alt_path
 
-try:
-    from PIL import Image, ImageEnhance
-    import pytesseract
-    _OCR_AVAILABLE = True
 
-    # Hardcode the exact Windows path where Tesseract installs by default
-    if sys.platform.startswith("win"):
-        tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-        if os.path.exists(tesseract_path):
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
-        else:
-            logger.warning("TESSERACT.EXE NOT FOUND AT: %s", tesseract_path)
-            logger.warning("Please install Tesseract OCR for Windows!")
-
-except ImportError:
-    _OCR_AVAILABLE = False
-    logger.error("PIL or pytesseract Python packages are missing. Run: pip install Pillow pytesseract")
+def clean_text(text: str) -> str:
+    if not text:
+        return ""
+    cleaned = re.sub(r'[\r\n\t]+', ' ', text)
+    cleaned = re.sub(r'\s{2,}', ' ', cleaned)
+    return cleaned.strip()
 
 
 def extract_text_from_image(image_path: str) -> str:
-    """Reads text from a saved image file using Tesseract."""
-    if not image_path or not os.path.exists(image_path):
-        logger.error("Image file not found: %s", image_path)
-        return ""
-
-    if not _OCR_AVAILABLE:
+    if not os.path.exists(image_path):
         return ""
 
     try:
-        # Quick test to see if the Tesseract engine is actually installed and reachable
+        # Load image via OpenCV
+        img = cv2.imread(image_path)
+        if img is None:
+            raw_text = pytesseract.image_to_string(Image.open(image_path))
+        else:
+            # Grayscale & contrast enhancement
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            h, w = gray.shape[:2]
+            if w < 1000:
+                scale = 1000 / w
+                gray = cv2.resize(gray, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
+
+            # Direct OCR extraction
+            raw_text = pytesseract.image_to_string(gray, config="--psm 6")
+            
+            if not raw_text.strip():
+                # Fallback with adaptive thresholding
+                thresh = cv2.adaptiveThreshold(
+                    gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+                )
+                raw_text = pytesseract.image_to_string(thresh, config="--psm 11")
+
+        final_clean = clean_text(raw_text)
+        print(f"\n[OCR EXTRACTED]: >>> {final_clean} <<<\n")
+        return final_clean
+
+    except Exception as e:
+        print(f"[OCR Error]: {e}")
         try:
-            pytesseract.get_tesseract_version()
+            return clean_text(pytesseract.image_to_string(Image.open(image_path)))
         except Exception:
-            logger.error("CRITICAL: Tesseract OCR Engine is NOT installed on your Windows system!")
             return ""
-
-        # Open Image
-        with Image.open(image_path) as img:
-            # Convert WebP/PNG with alpha channels to solid RGB
-            if img.mode in ("RGBA", "P"):
-                img = img.convert("RGB")
-            elif img.mode != "RGB":
-                img = img.convert("RGB")
-
-            # Basic Preprocessing: 2x Upscale and Contrast Boost for better accuracy
-            width, height = img.size
-            img = img.resize((width * 2, height * 2), Image.Resampling.LANCZOS)
-            
-            enhancer = ImageEnhance.Contrast(img)
-            img = enhancer.enhance(2.0)
-
-            # Run OCR
-            text = pytesseract.image_to_string(img)
-            
-            extracted = text.strip()
-            if extracted:
-                logger.info("Successfully extracted %d characters from image.", len(extracted))
-            else:
-                logger.warning("OCR ran successfully but found NO text in the image.")
-                
-            return extracted
-
-    except Exception as exc:
-        logger.error("OCR Extraction Failed: %s", exc)
-        return ""
