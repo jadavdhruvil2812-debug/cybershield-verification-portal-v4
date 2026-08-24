@@ -1,5 +1,6 @@
 """
-CyberShield Enterprise Multi-Layer URL Analyzer (v8.0 - Bulletproof Defense)
+CyberShield Enterprise Multi-Layer URL Analyzer (v9.0 - Unified Bulletproof Defense)
+Includes URL Unshortening, Homograph, Brand Spoofing, Cloud Subdomains & Heuristics
 Location: ai-backend/services/url_analyzer.py
 """
 
@@ -8,6 +9,7 @@ import re
 import socket
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, unquote, urlparse
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -29,20 +31,22 @@ except ImportError:
 # Strictly Verified Root Domains (Safe Haven)
 VERIFIED_CLEAN_ROOTS = {
     # Tech & Infrastructure
-    "google.com", "youtube.com", "github.com", "githubusercontent.com",
+    "google.com", "google.co.in", "youtube.com", "github.com", "githubusercontent.com",
     "microsoft.com", "apple.com", "cloudflare.com", "amazonaws.com",
     "fastapi.tiangolo.com", "nextjs.org", "python.org", "wikipedia.org",
     "meta.com", "instagram.com", "linkedin.com", "x.com", "twitter.com",
+    "stackoverflow.com", "mozilla.org",
     # Indian Banking & Enterprise
-    "sbi.co.in", "onlinesbi.sbi", "hdfcbank.com", "icicibank.com", "axisbank.com",
-    "kotak.com", "rbi.org.in", "npci.org.in", "paytm.com", "phonepe.com",
+    "sbi.co.in", "onlinesbi.sbi", "statebankofindia.com", "hdfcbank.com", "hdfc.com",
+    "icicibank.com", "axisbank.com", "pnbindia.in", "kotak.com", "rbi.org.in", 
+    "npci.org.in", "paytm.com", "phonepe.com",
     # Government Portals
     "incometax.gov.in", "uidai.gov.in", "indiapost.gov.in", "epfindia.gov.in",
     "parivahan.gov.in", "cbic.gov.in", "digilocker.gov.in", "india.gov.in",
     # Utilities & Telecommunications
     "jio.com", "airtel.in", "vi.in", "bsnl.co.in",
     # Major E-Commerce & OTT
-    "amazon.in", "amazon.com", "flipkart.com", "netflix.com", "hotstar.com"
+    "amazon.in", "amazon.com", "flipkart.com", "netflix.com", "hotstar.com", "swiggy.com", "zomato.com"
 }
 
 # Free Hosting & Staging Platforms (Heavily abused for instant phishing)
@@ -62,7 +66,7 @@ HIGH_RISK_TLDS = {
 
 # Sensitive Target Brands frequently spoofed
 CRITICAL_BRANDS = [
-    "sbi", "onlinesbi", "hdfc", "icici", "axis", "kotak", "paytm", "phonepe", "gpay",
+    "sbi", "onlinesbi", "hdfc", "icici", "axis", "kotak", "pnb", "paytm", "phonepe", "gpay",
     "amazon", "flipkart", "incometax", "uidai", "aadhaar", "indiapost", "fastag",
     "epfo", "uan", "cibil", "netflix", "apple", "microsoft", "google", "meta"
 ]
@@ -76,16 +80,23 @@ DANGEROUS_PAYLOAD_EXTENSIONS = [
 PHISHING_INTENT_KEYWORDS = [
     "kyc-update", "claim-reward", "dispute-case", "unfreeze", "bank-login",
     "verify-pan", "customer-pan-verify", "refund-process", "bill-payment",
-    "urgent-verify", "biometric-lock", "account-suspended", "redeem-points"
+    "urgent-verify", "biometric-lock", "account-suspended", "redeem-points",
+    "winner", "lottery", "cashback-claim"
 ]
+
+# Common URL Shorteners
+SHORTENERS = {
+    "bit.ly", "tinyurl.com", "t.co", "is.gd", "buff.ly", "ow.ly",
+    "cutt.ly", "rb.gy", "shorturl.at"
+}
 
 
 # ============================================================================
-# 2. ADVANCED HEURISTIC & FUZZY DETECTION HELPERS
+# 2. HEURISTIC & FUZZY DETECTION HELPERS
 # ============================================================================
 
 def _calculate_levenshtein(s1: str, s2: str) -> int:
-    """Calculates edit distance to detect character replacement typosquatting (e.g., amaz0n -> amazon)."""
+    """Calculates edit distance to detect typosquatting."""
     if len(s1) < len(s2):
         return _calculate_levenshtein(s2, s1)
     if len(s2) == 0:
@@ -104,7 +115,6 @@ def _calculate_levenshtein(s1: str, s2: str) -> int:
 
 def _check_typosquatting(domain_segment: str) -> Optional[str]:
     """Detects visual lookalike brand spoofing (Levenshtein distance of 1 or 2)."""
-    # Replace common leetspeak substitutions
     normalized = domain_segment.replace("0", "o").replace("1", "l").replace("vv", "w")
     for brand in CRITICAL_BRANDS:
         if len(brand) >= 4:
@@ -116,21 +126,38 @@ def _check_typosquatting(domain_segment: str) -> Optional[str]:
 
 def _is_ip_literal(hostname: str) -> bool:
     """Detects raw IPv4, IPv6, or obfuscated decimal/hex IP addresses."""
-    # IPv4 Pattern
     if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", hostname):
         return True
-    # Hex/Octal notation (e.g. 0x7f000001)
     if re.match(r"^0x[0-9a-fA-F]+$", hostname) or re.match(r"^\d{8,11}$", hostname):
         return True
-    # IPv6 Pattern
     if ":" in hostname and re.match(r"^[0-9a-fA-F:]+$", hostname):
         return True
     return False
 
 
+def _unshorten_url(raw_url: str) -> str:
+    """Resolve shortened URL to destination if a shortener is used."""
+    try:
+        target = raw_url if raw_url.startswith(("http://", "https://")) else f"http://{raw_url}"
+        domain = urlparse(target).netloc.lower().split(":")[0]
+        if any(shortener in domain for shortener in SHORTENERS):
+            resp = requests.head(target, allow_redirects=True, timeout=2.5)
+            return resp.url
+    except Exception:
+        pass
+    return raw_url
+
+
 # ============================================================================
 # 3. MASTER URL EVALUATION PIPELINE
 # ============================================================================
+
+class URLAnalyzer:
+    """Unified Class Interface for URL Reputation & Deep Threat Intelligence."""
+
+    def analyze(self, url: str) -> Dict[str, Any]:
+        return analyze_url_reputation(url)
+
 
 def analyze_url_reputation(url: str) -> Dict[str, Any]:
     if not url or not str(url).strip():
@@ -143,7 +170,10 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
         }
 
     raw_url = str(url).strip()
-    decoded_url = unquote(raw_url)
+    
+    # Resolve Shortener if present
+    expanded_url = _unshorten_url(raw_url)
+    decoded_url = unquote(expanded_url)
     formatted_url = decoded_url if re.match(r"^https?://", decoded_url, re.IGNORECASE) else f"http://{decoded_url}"
 
     score = 0.0
@@ -153,7 +183,6 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
         parsed = urlparse(formatted_url)
         hostname = (parsed.hostname or "").lower()
         path = parsed.path.lower()
-        query = parsed.query.lower()
         full_lower = formatted_url.lower()
 
         # -------------------------------------------------------------
@@ -174,7 +203,6 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
                 for val in values:
                     if re.match(r"^https?://", val, re.IGNORECASE):
                         target_netloc = urlparse(val).netloc.lower()
-                        # Agar redirect destination unverified hai
                         if not any(target_netloc == v or target_netloc.endswith("." + v) for v in VERIFIED_CLEAN_ROOTS):
                             score += 75.0
                             threat_factors.append(f"Malicious open-redirect trampoline pointing to '{target_netloc}'")
@@ -194,7 +222,6 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
 
         # -------------------------------------------------------------
         # LAYER 4: TRUSTED ROOT DOMAIN VERIFICATION (Whitelist Guard)
-        # If no severe redirect/punycode attacks were triggered:
         # -------------------------------------------------------------
         if score == 0.0:
             for clean_root in VERIFIED_CLEAN_ROOTS:
@@ -211,7 +238,7 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
         # LAYER 5: MALICIOUS FILE & DIRECT PAYLOAD DELIVERY
         # -------------------------------------------------------------
         if any(path.endswith(ext) for ext in DANGEROUS_PAYLOAD_EXTENSIONS):
-            score += 80.0
+            score += 85.0
             threat_factors.append("Direct downloadable executable or malicious script payload detected")
 
         # -------------------------------------------------------------
@@ -225,19 +252,17 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
         # LAYER 7: HIGH-RISK / PHISHING TLDS
         # -------------------------------------------------------------
         if any(hostname.endswith(tld) for tld in HIGH_RISK_TLDS):
-            score += 45.0
+            score += 55.0
             threat_factors.append("Domain utilizes a high-risk / phishing-abused TLD extension")
 
         # -------------------------------------------------------------
         # LAYER 8: BRAND IMPERSONATION & TYPOSQUATTING
         # -------------------------------------------------------------
-        # 8a. Direct Brand presence in untrusted hostname
         matched_brands = [b for b in CRITICAL_BRANDS if b in hostname]
         if matched_brands:
-            score += 55.0
+            score += 60.0
             threat_factors.append(f"Domain spoofing brand identity ({', '.join(matched_brands[:2])})")
         
-        # 8b. Typosquatting / Lookalike Check on domain parts
         domain_parts = hostname.split(".")
         for part in domain_parts:
             typo_finding = _check_typosquatting(part)
@@ -254,7 +279,7 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
             threat_factors.append("Deceptive URL structure with excessive subdomains/hyphens")
 
         if any(trigger in full_lower for trigger in PHISHING_INTENT_KEYWORDS):
-            score += 35.0
+            score += 40.0
             threat_factors.append("Credential-harvesting or scam intent path detected in URL")
 
         # -------------------------------------------------------------
@@ -276,9 +301,10 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
         }
 
     # =========================================================================
-    # FINAL CLASSIFICATION DECISION (Binary Verdict Mode)
+    # FINAL CLASSIFICATION DECISION
     # =========================================================================
-    is_unsafe = score >= 35.0
+    final_score = min(score, 100.0)
+    is_unsafe = final_score >= 35.0
     status = "Unsafe" if is_unsafe else "Safe"
     
     recommendation = (
@@ -290,7 +316,11 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
     return {
         "url": raw_url,
         "status": status,
-        "score": score,
+        "score": final_score,
         "threat_factors": threat_factors,
         "recommendation": recommendation
     }
+
+
+# Singleton instance for modular imports across engines
+url_analyzer = URLAnalyzer()

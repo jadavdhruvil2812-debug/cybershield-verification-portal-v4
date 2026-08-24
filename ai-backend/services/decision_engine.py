@@ -1,6 +1,7 @@
 """
-CyberShield Enterprise Decision Engine
-Hybrid ML + Rule Engine + Heuristic Engine (Balanced Threshold Fix)
+CyberShield Enterprise Master Decision Engine (v10.0 Production)
+Hybrid ML + Rule Engine + Heuristic Engine + URL Hardened Layer
+Location: ai-backend/services/decision_engine.py
 """
 
 from typing import Dict, Any, List
@@ -12,6 +13,8 @@ import joblib
 from .rule_engine import RuleEngine
 from .heuristic_engine import HeuristicEngine
 from .risk_calculator import RiskCalculator
+from .text_normalizer import text_normalizer
+from .url_analyzer import url_analyzer
 
 
 class DecisionEngine:
@@ -26,10 +29,14 @@ class DecisionEngine:
             r"\b(used for|debited|credited|spent|txn id|ref no|avail(?:able)?\s+bal(?:ance)?|deposited|sent rs|paid rs|order placed|payment received)\b",
             re.IGNORECASE
         )
-        
-        # Hard threat markers
+
+        # Unified Threat & Social Engineering Regex (Utility, Phone traps, Phishing TLDs, Suspensions)
         self.threat_action_regex = re.compile(
-            r"\b(\.xyz|\.top|\.apk|\.rest|\.buzz|verify kyc|call officer|account suspended|account blocked|lottery claim|won cash)\b",
+            r"(\.xyz|\.top|\.apk|\.rest|\.buzz|\.site|\.club|"
+            r"verify kyc|call officer|call our helpline|helpline officer|call manager|"
+            r"suspended|blocked|deactivated|disconnected|power connection|"
+            r"lottery claim|won cash|cash prize|pending arrears|"
+            r"call\s+(?:our\s+)?(?:helpline|officer|manager|support)?\s*(?:at|on|number)?\s*[:\-]?\s*[6-9]\d{9})",
             re.IGNORECASE
         )
 
@@ -41,7 +48,7 @@ class DecisionEngine:
             else:
                 self.ml_model = None
 
-        if model_path.exists():
+        if model_path and model_path.exists():
             self.ml_model = joblib.load(model_path)
         else:
             self.ml_model = None
@@ -62,12 +69,30 @@ class DecisionEngine:
             spam_probability = 1.0 if prediction in [1, "spam", "SCAM"] else 0.0
 
         # High confidence threshold for ML to avoid False Positives
-        is_spam = (prediction in [1, "spam", "SCAM"]) and (spam_probability > 0.80)
+        is_spam = (prediction in [1, "spam", "SCAM"]) and (spam_probability > 0.75)
 
         return {
             "is_spam": is_spam,
             "spam_prob": spam_probability
         }
+
+    def _extract_and_check_urls(self, text: str) -> Dict[str, Any]:
+        """Extract URLs and evaluate using the Hardened URL Analyzer."""
+        url_matches = re.findall(
+            r'https?://[^\s<>"]+|www\.[^\s<>"]+|\b[a-zA-Z0-9.-]+\.(?:xyz|top|site|club|online|apk|rest|buzz)\b',
+            text,
+            re.IGNORECASE
+        )
+        
+        for raw_url in url_matches:
+            url_res = url_analyzer.analyze(raw_url)
+            if url_res.get("status") == "Unsafe":
+                return {
+                    "is_unsafe": True,
+                    "score": url_res.get("score", 90.0),
+                    "reason": f"Malicious embedded link detected ({raw_url})"
+                }
+        return {"is_unsafe": False, "score": 0.0, "reason": ""}
 
     def _determine_final_status(
         self,
@@ -94,8 +119,8 @@ class DecisionEngine:
         if has_critical_rule or rule_score >= 60:
             return "Unsafe"
 
-        # 3. Threat action present with non-zero risk
-        if has_threat_action and (rule_score > 10 or heuristic_score > 20):
+        # 3. Direct Threat Action
+        if has_threat_action:
             return "Unsafe"
 
         # 4. ML Spam trigger handling
@@ -106,7 +131,7 @@ class DecisionEngine:
 
         # 5. Score aggregation
         total_risk = (rule_score * 0.6) + (heuristic_score * 0.4)
-        if total_risk >= 50:
+        if total_risk >= 45:
             return "Unsafe"
         elif total_risk >= 20:
             return "Suspicious"
@@ -121,18 +146,28 @@ class DecisionEngine:
                 "recommendation": "Input is empty or clean."
             }
 
-        text_clean = text.strip()
+        # Step 1: Normalize & Deobfuscate Text (Removes zero-width spaces, leetspeak)
+        text_clean = text_normalizer.deobfuscate(text)
 
-        # 1. ML Engine
+        # Step 2: Deep URL Interception inside Text
+        url_threat = self._extract_and_check_urls(text_clean)
+        if url_threat["is_unsafe"]:
+            return {
+                "status": "Unsafe",
+                "score": max(url_threat["score"], 85.0),
+                "recommendation": f"High risk detected. {url_threat['reason']}. Do not click links or enter credentials."
+            }
+
+        # Step 3: ML Engine
         ml_result = self._ml_analyze(text_clean)
 
-        # 2. Rule Engine
+        # Step 4: Rule Engine
         rule_result = self.rule_engine.evaluate_sms(text_clean)
 
-        # 3. Heuristic Engine
+        # Step 5: Heuristic Engine
         heuristic_result = self.heuristic_engine.analyze(text_clean)
 
-        # 4. Determine Status
+        # Step 6: Determine Final Status
         final_status = self._determine_final_status(
             text=text_clean,
             is_ml_spam=ml_result["is_spam"],
@@ -153,8 +188,18 @@ class DecisionEngine:
             else recommendations[final_status]
         )
 
+        final_score = max(
+            rule_result.score, 
+            heuristic_result.score, 
+            (85.0 if final_status == "Unsafe" else 0.0)
+        )
+
         return {
             "status": final_status,
-            "score": max(rule_result.score, heuristic_result.score),
+            "score": final_score,
             "recommendation": custom_rec
         }
+
+
+# Singleton instance
+decision_engine = DecisionEngine()

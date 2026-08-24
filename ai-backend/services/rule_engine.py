@@ -1,12 +1,12 @@
 """
-CyberShield Advanced Semantic & Intent Rule Engine (v6.0)
-Includes Phone-Call Vishing & Utility Disconnection Threat Interception
+CyberShield Enterprise Semantic & Intent Rule Engine (v6.1 Production)
+Comprehensive Pattern Matching for Phishing, Vishing, KYC, Utility, & Banking Scams
 Location: ai-backend/services/rule_engine.py
 """
 
 import re
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import List, Optional
 from urllib.parse import urlparse
 
 
@@ -15,6 +15,7 @@ class RuleResult:
     status: str
     score: float
     matched_rules: List[str]
+    recommendation: Optional[str] = None
 
 
 class RuleEngine:
@@ -28,7 +29,8 @@ class RuleEngine:
         self.whitelisted_domains = {
             "sbi.co.in", "onlinesbi.sbi", "hdfcbank.com", "icicibank.com",
             "axisbank.com", "incometax.gov.in", "uidai.gov.in", "indiapost.gov.in",
-            "amazon.in", "flipkart.com", "goindigo.in", "jio.com", "airtel.in"
+            "amazon.in", "flipkart.com", "goindigo.in", "jio.com", "airtel.in",
+            "wikipedia.org", "github.com", "microsoft.com", "stackoverflow.com"
         }
 
     def extract_urls(self, text: str) -> List[str]:
@@ -36,36 +38,48 @@ class RuleEngine:
         return re.findall(url_pattern, text, flags=re.IGNORECASE)
 
     def evaluate(self, text: str, channel_multiplier: float = 1.0) -> RuleResult:
+        if not text or not text.strip():
+            return RuleResult(status="Safe", score=0.0, matched_rules=[])
+
         score = 0.0
         matched = []
-        text_lower = text.lower()
+        
+        # Flatten whitespace and newlines for unified regex checking
+        text_clean = " ".join(text.split())
+        text_lower = text_clean.lower()
         urls = self.extract_urls(text)
 
         # ---------------------------------------------------------
-        # RULE 1: UTILITY / BILLING DISCONNECTION & VISHING (Test 7 Fix)
+        # RULE 1: UTILITY / POWER DISCONNECTION & VISHING
         # ---------------------------------------------------------
-        disconnection_keywords = ["disconnect", "power will be", "electricity office", "gas connection", "bill was not update", "meter #", "billing mismatch"]
+        disconnection_keywords = [
+            "disconnect", "power will be", "power connection", "electricity", 
+            "bses", "bijli", "light bill", "gas connection", "bill was not update", 
+            "pending arrears", "arrears", "meter #", "billing mismatch"
+        ]
+        
         call_helpline_patterns = [
-            r'call.*(\b[6-9]\d{9}\b)',
-            r'contact.*(\b[6-9]\d{9}\b)',
-            r'officer.*(\b[6-9]\d{9}\b)',
-            r'desk at\s+(\b[6-9]\d{9}\b)',
-            r'call.*officer',
-            r'contact.*office'
+            r'call.*(?:\b[6-9]\d{9}\b)',
+            r'contact.*(?:\b[6-9]\d{9}\b)',
+            r'officer.*(?:\b[6-9]\d{9}\b)',
+            r'helpline.*(?:\b[6-9]\d{9}\b)',
+            r'call\s+(?:our\s+)?(?:helpline|officer|manager|support|desk)',
+            r'contact\s+(?:our\s+)?(?:office|helpline|officer)'
         ]
 
         has_disconnection = any(kw in text_lower for kw in disconnection_keywords)
         has_call_trigger = any(re.search(pat, text_lower) for pat in call_helpline_patterns)
+        has_urgency = any(w in text_lower for w in ["tonight", "today", "immediately", "urgent", "9.30 pm", "at once"])
 
-        if has_disconnection and has_call_trigger:
+        if has_disconnection and (has_call_trigger or has_urgency):
+            score += 70.0
+            matched.append("CRITICAL: Utility Disconnection Social Engineering with Fake Helpline (Vishing)")
+        elif has_disconnection and ("suspended" in text_lower or "blocked" in text_lower):
             score += 55.0
-            matched.append("Utility Disconnection with Unofficial Contact Number (Vishing)")
-        elif has_disconnection and ("tonight" in text_lower or "immediately" in text_lower or "urgent" in text_lower):
-            score += 45.0
-            matched.append("Urgent Service Disconnection Panic Hook")
+            matched.append("HIGH: Service Suspension Panic Trigger")
 
         # ---------------------------------------------------------
-        # RULE 2: URL INTENT & TLD ANALYSIS
+        # RULE 2: URL INTENT, SPOOFING & TLD ANALYSIS
         # ---------------------------------------------------------
         for url in urls:
             try:
@@ -73,63 +87,69 @@ class RuleEngine:
                 domain = urlparse(full_url).netloc.lower()
 
                 if any(domain.endswith(tld) for tld in self.suspicious_tlds):
-                    score += 45.0
-                    matched.append(f"High-Risk TLD Detected ({domain})")
+                    score += 60.0
+                    matched.append(f"CRITICAL: High-Risk Phishing TLD ({domain})")
 
-                sensitive_brands = ["sbi", "hdfc", "icici", "uidai", "aadhaar", "incometax", "indiapost", "fastag", "upi", "dispute", "refund", "kyc", "epf", "uan", "cibil", "flipkart", "telecom"]
+                sensitive_brands = [
+                    "sbi", "hdfc", "icici", "pnb", "axis", "uidai", "aadhaar", 
+                    "incometax", "indiapost", "fastag", "upi", "kyc", "epf", "uan", "cibil"
+                ]
                 if any(b in domain for b in sensitive_brands):
-                    if domain not in self.whitelisted_domains:
-                        score += 50.0
-                        matched.append(f"Domain Brand Impersonation ({domain})")
+                    if not any(domain.endswith(w) for w in self.whitelisted_domains):
+                        score += 65.0
+                        matched.append(f"CRITICAL: Bank/Gov Brand Impersonation Domain ({domain})")
 
                 if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', domain):
                     score += 60.0
-                    matched.append("Raw IP Address as Link")
+                    matched.append("HIGH: Raw IP Address Target")
+
+                if any(ext in url.lower() for ext in [".apk", ".exe", ".bat", ".scr"]):
+                    score += 75.0
+                    matched.append("CRITICAL: Direct Malware / Malicious APK Download Payload")
             except Exception:
                 score += 20.0
 
         # ---------------------------------------------------------
-        # RULE 3: REVERSE PSYCHOLOGY & CANCELLATION TRAPS
+        # RULE 3: BANKING KYC & ACCOUNT SUSPENSION TRAPS
         # ---------------------------------------------------------
-        reverse_traps = [
-            (r'unauthorized.*transaction.*cancel', 40.0, "Reverse Fraud Alert Trap"),
-            (r'if not done by you.*http', 45.0, "Fake Cancellation Link Trap"),
-            (r'prevent fund deduction.*http', 45.0, "Urgent Fund Deduction Link"),
-            (r'mistakenly credited.*return', 40.0, "Erroneous Credit / UPI Reversal Scam"),
-            (r'unadjusted tds refund.*direct credit', 40.0, "Fake Income Tax Direct Credit"),
-            (r'uan passbook.*freeze.*http', 45.0, "EPFO UAN Freeze Trap"),
-            (r'cibil.*drop.*dispute.*http', 45.0, "CIBIL Score Dispute Hook"),
-            (r'sim.*suspended.*document.*http', 45.0, "SIM Deactivation Panic Hook"),
+        kyc_patterns = [
+            (r'(sbi|hdfc|icici|pnb|axis|bank).*(suspended|blocked|deactivated|restricted|frozen)', 60.0, "CRITICAL: Fake Bank Freeze Notice"),
+            (r'(update|verify|complete).*(kyc|pan card|aadhaar|pan).*http', 65.0, "CRITICAL: Deceptive KYC/PAN Verification Link"),
+            (r'unauthorized.*transaction.*(?:cancel|reverse|call)', 50.0, "HIGH: Reverse Fraud Alert / False Debit Trap"),
+            (r'sim.*(?:suspended|block|deactivate).*http', 50.0, "HIGH: Telecom SIM Deactivation Trap")
         ]
-        for pattern, points, name in reverse_traps:
+        for pattern, points, name in kyc_patterns:
             if re.search(pattern, text_lower):
                 score += points
                 matched.append(name)
 
         # ---------------------------------------------------------
-        # RULE 4: LOGISTICS & ACTIONABLE UNVERIFIED LINKS
+        # RULE 4: LOTTERY, REWARDS & SOCIAL ENGINEERING LURES
         # ---------------------------------------------------------
-        logistics_traps = [
-            (r'cannot be delivered.*incomplete', 40.0, "Fake Delivery Address Notice"),
-            (r'consignment.*return to sender.*http', 45.0, "Postal Consignment Return Trap"),
-            (r'fastag.*blacklisted.*kyc', 40.0, "FASTag Toll Blacklist Scam"),
-            (r'biometric.*disablement.*verify', 40.0, "Aadhaar Biometric Disablement Threat"),
-            (r'exclusive vip.*gift.*before midnight', 40.0, "E-Commerce Urgent Voucher Trap"),
+        lottery_patterns = [
+            (r'(won|winner|lottery|cash prize|shopping voucher|claim bonus).*(call|http|\d{10}|rs\.?\s*\d+)', 60.0, "HIGH: Lottery & Cash Reward Bait"),
+            (r'(part-time job|earn rs|like youtube videos|task app).*(http|\.apk)', 60.0, "HIGH: Work-From-Home Task Fraud Scheme"),
+            (r'(courier|package|delivery).*(incomplete|wrong address|on hold).*http', 50.0, "HIGH: Deceptive Package Redelivery Trap")
         ]
-        for pattern, points, name in logistics_traps:
+        for pattern, points, name in lottery_patterns:
             if re.search(pattern, text_lower):
                 score += points
                 matched.append(name)
 
-        if urls and any(w in text_lower for w in ["verify", "update", "cancel", "settle", "resume", "dispute", "screening", "form", "claim"]):
-            score += 25.0
-            matched.append("Actionable Link in Unsolicited SMS")
+        final_score = min(score * channel_multiplier, 100.0)
+        status = "Unsafe" if final_score >= 40.0 else "Safe"
 
-        final_score = score * channel_multiplier
-        status = "Unsafe" if final_score >= 35.0 else "Safe"
+        rec = None
+        if status == "Unsafe":
+            rec = "CRITICAL THREAT: Phishing, Vishing, or Social Engineering scam detected. Do not call numbers or open links."
 
         return RuleResult(
             status=status,
             score=final_score,
-            matched_rules=matched
+            matched_rules=matched,
+            recommendation=rec
         )
+
+    def evaluate_sms(self, text: str) -> RuleResult:
+        """Helper alias for direct SMS evaluation compatibility."""
+        return self.evaluate(text, channel_multiplier=1.0)

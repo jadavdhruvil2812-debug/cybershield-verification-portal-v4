@@ -1,12 +1,12 @@
 """
-CyberShield Enterprise Bulletproof QR Analyzer (v19.0 Master Fix)
+CyberShield Enterprise Bulletproof QR Analyzer (v20.0 Unified Production)
 Location: ai-backend/services/qr_analyzer.py
 """
 
 import io
 import logging
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, unquote
 
 import cv2
@@ -19,7 +19,7 @@ try:
 except Exception:
     zxingcpp = None
 
-# 2. QReader AI Engine (Safely initialized globally)
+# 2. QReader AI Engine
 try:
     from qreader import QReader
     qreader_engine = QReader()
@@ -28,6 +28,7 @@ except Exception:
 
 from services.url_analyzer import analyze_url_reputation
 from services.predictor import predict_sms
+from services.text_normalizer import text_normalizer
 
 logger = logging.getLogger("cybershield.qr_analyzer")
 
@@ -60,11 +61,10 @@ def _decode_qr_robust(image_bytes: bytes) -> str:
         else:
             pil_raw = pil_raw.convert("RGB")
 
-        # 60px White Border Padding (Mandatory for Stylized QRs)
+        # White Border Padding (Quiet Zone Recovery)
         padded_pil = ImageOps.expand(pil_raw, border=60, fill="white")
 
         img_rgb = np.array(padded_pil)
-        img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
         img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
 
         # PASS 1: ZXing C++
@@ -140,11 +140,13 @@ def _evaluate_upi_intent(payload: str) -> Dict[str, Any]:
     }
 
 
-async def analyze_qr_image(image_bytes: bytes) -> Dict[str, Any]:
+def analyze_qr_sync(image_bytes: bytes) -> Dict[str, Any]:
+    """Synchronous QR analysis engine core."""
     if not image_bytes:
         return {
             "success": False,
             "status": "Unsafe",
+            "score": 0.0,
             "data": "",
             "recommendation": "Empty image provided."
         }
@@ -161,7 +163,7 @@ async def analyze_qr_image(image_bytes: bytes) -> Dict[str, Any]:
             "recommendation": "QR code unreadable or decorative artwork. Matrix alignment patterns could not be resolved."
         }
 
-    payload_clean = decoded_payload.strip()
+    payload_clean = text_normalizer.clean_text(decoded_payload.strip())
     payload_lower = payload_clean.lower()
 
     # Route 1: UPI Scheme
@@ -198,7 +200,7 @@ async def analyze_qr_image(image_bytes: bytes) -> Dict[str, Any]:
             )
         }
 
-    # Route 3: Plain Text
+    # Route 3: Plain Text (SMS ML + Heuristics)
     text_res = predict_sms(payload_clean)
     raw_status = str(text_res.get("status", "Safe")).strip().upper()
     is_unsafe = raw_status == "UNSAFE"
@@ -215,3 +217,18 @@ async def analyze_qr_image(image_bytes: bytes) -> Dict[str, Any]:
             else "High threat detected in QR payload."
         )
     }
+
+
+class QRAnalyzer:
+    """Class wrapper for OOP modular architecture."""
+    def analyze_image_bytes(self, image_bytes: bytes) -> Dict[str, Any]:
+        return analyze_qr_sync(image_bytes)
+
+
+# Standard async helper for FastAPI endpoint routes
+async def analyze_qr_image(image_bytes: bytes) -> Dict[str, Any]:
+    return analyze_qr_sync(image_bytes)
+
+
+# Singleton instance
+qr_analyzer = QRAnalyzer()
