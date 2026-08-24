@@ -1,6 +1,6 @@
 """
-CyberShield Enterprise Multi-Layer URL Analyzer (v9.0 - Unified Bulletproof Defense)
-Includes URL Unshortening, Homograph, Brand Spoofing, Cloud Subdomains & Heuristics
+CyberShield Enterprise Multi-Layer URL Analyzer (v9.1 - Unified Bulletproof Defense)
+Includes URL Unshortening, Homograph, Brand Spoofing, Cloud Subdomains & Punctuation Stripping
 Location: ai-backend/services/url_analyzer.py
 """
 
@@ -169,7 +169,8 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
             "recommendation": "Empty URL input provided."
         }
 
-    raw_url = str(url).strip()
+    # Sanitize surrounding whitespaces and trailing sentence punctuations
+    raw_url = str(url).strip().rstrip(".,;!?:")
     
     # Resolve Shortener if present
     expanded_url = _unshorten_url(raw_url)
@@ -181,7 +182,7 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
 
     try:
         parsed = urlparse(formatted_url)
-        hostname = (parsed.hostname or "").lower()
+        hostname = (parsed.hostname or "").lower().rstrip(".")
         path = parsed.path.lower()
         full_lower = formatted_url.lower()
 
@@ -202,7 +203,7 @@ def analyze_url_reputation(url: str) -> Dict[str, Any]:
             if param.lower() in redirect_params:
                 for val in values:
                     if re.match(r"^https?://", val, re.IGNORECASE):
-                        target_netloc = urlparse(val).netloc.lower()
+                        target_netloc = urlparse(val).netloc.lower().rstrip(".")
                         if not any(target_netloc == v or target_netloc.endswith("." + v) for v in VERIFIED_CLEAN_ROOTS):
                             score += 75.0
                             threat_factors.append(f"Malicious open-redirect trampoline pointing to '{target_netloc}'")

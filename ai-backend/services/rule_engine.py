@@ -1,11 +1,10 @@
 """
-CyberShield Enterprise Semantic & Intent Rule Engine (v6.1 Production)
-Comprehensive Pattern Matching for Phishing, Vishing, KYC, Utility, & Banking Scams
+CyberShield Enterprise Semantic & Intent Rule Engine (v6.2 Production)
 Location: ai-backend/services/rule_engine.py
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional
 from urllib.parse import urlparse
 
@@ -35,7 +34,9 @@ class RuleEngine:
 
     def extract_urls(self, text: str) -> List[str]:
         url_pattern = r'https?://[^\s<>"]+|www\.[^\s<>"]+'
-        return re.findall(url_pattern, text, flags=re.IGNORECASE)
+        raw_urls = re.findall(url_pattern, text, flags=re.IGNORECASE)
+        # Clean trailing dots, commas, semicolons
+        return [u.rstrip(".,;!?:") for u in raw_urls]
 
     def evaluate(self, text: str, channel_multiplier: float = 1.0) -> RuleResult:
         if not text or not text.strip():
@@ -44,10 +45,17 @@ class RuleEngine:
         score = 0.0
         matched = []
         
-        # Flatten whitespace and newlines for unified regex checking
         text_clean = " ".join(text.split())
         text_lower = text_clean.lower()
         urls = self.extract_urls(text)
+
+        # ---------------------------------------------------------
+        # SAFE STATEMENT & TRANSACTION BYPASS GUARD
+        # ---------------------------------------------------------
+        is_legit_statement = bool(re.search(
+            r"\b(credit card statement|statement for card ending|total amt due|due date|min amt due)\b",
+            text_lower
+        ))
 
         # ---------------------------------------------------------
         # RULE 1: UTILITY / POWER DISCONNECTION & VISHING
@@ -84,7 +92,7 @@ class RuleEngine:
         for url in urls:
             try:
                 full_url = url if url.startswith("http") else f"http://{url}"
-                domain = urlparse(full_url).netloc.lower()
+                domain = (urlparse(full_url).netloc or "").lower().rstrip(".")
 
                 if any(domain.endswith(tld) for tld in self.suspicious_tlds):
                     score += 60.0
@@ -95,7 +103,7 @@ class RuleEngine:
                     "incometax", "indiapost", "fastag", "upi", "kyc", "epf", "uan", "cibil"
                 ]
                 if any(b in domain for b in sensitive_brands):
-                    if not any(domain.endswith(w) for w in self.whitelisted_domains):
+                    if not any(domain == w or domain.endswith(f".{w}") for w in self.whitelisted_domains):
                         score += 65.0
                         matched.append(f"CRITICAL: Bank/Gov Brand Impersonation Domain ({domain})")
 
@@ -124,7 +132,7 @@ class RuleEngine:
                 matched.append(name)
 
         # ---------------------------------------------------------
-        # RULE 4: LOTTERY, REWARDS & SOCIAL ENGINEERING LURES
+        # RULE 4: LOTTERY & REWARDS
         # ---------------------------------------------------------
         lottery_patterns = [
             (r'(won|winner|lottery|cash prize|shopping voucher|claim bonus).*(call|http|\d{10}|rs\.?\s*\d+)', 60.0, "HIGH: Lottery & Cash Reward Bait"),
@@ -135,6 +143,10 @@ class RuleEngine:
             if re.search(pattern, text_lower):
                 score += points
                 matched.append(name)
+
+        if is_legit_statement and not any("CRITICAL" in m for m in matched):
+            score = 0.0
+            matched = []
 
         final_score = min(score * channel_multiplier, 100.0)
         status = "Unsafe" if final_score >= 40.0 else "Safe"
@@ -151,5 +163,4 @@ class RuleEngine:
         )
 
     def evaluate_sms(self, text: str) -> RuleResult:
-        """Helper alias for direct SMS evaluation compatibility."""
         return self.evaluate(text, channel_multiplier=1.0)

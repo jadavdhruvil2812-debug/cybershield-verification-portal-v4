@@ -1,5 +1,5 @@
 """
-CyberShield Enterprise Master Decision Engine (v10.0 Production)
+CyberShield Enterprise Master Decision Engine (v10.1 Production)
 Hybrid ML + Rule Engine + Heuristic Engine + URL Hardened Layer
 Location: ai-backend/services/decision_engine.py
 """
@@ -24,9 +24,11 @@ class DecisionEngine:
         self.heuristic_engine = HeuristicEngine()
         self.risk_calculator = RiskCalculator()
 
-        # Legitimate transaction markers
+        # Legitimate transaction & statement notification markers
         self.safe_tx_regex = re.compile(
-            r"\b(used for|debited|credited|spent|txn id|ref no|avail(?:able)?\s+bal(?:ance)?|deposited|sent rs|paid rs|order placed|payment received)\b",
+            r"\b(used for|debited|credited|spent|txn id|ref no|avail(?:able)?\s+bal(?:ance)?|"
+            r"deposited|sent rs|paid rs|order placed|payment received|"
+            r"statement|card ending|total amt due|due date|min amt due|bill generated)\b",
             re.IGNORECASE
         )
 
@@ -68,8 +70,8 @@ class DecisionEngine:
         except Exception:
             spam_probability = 1.0 if prediction in [1, "spam", "SCAM"] else 0.0
 
-        # High confidence threshold for ML to avoid False Positives
-        is_spam = (prediction in [1, "spam", "SCAM"]) and (spam_probability > 0.75)
+        # High confidence threshold for ML to avoid False Positives on legitimate alerts
+        is_spam = (prediction in [1, "spam", "SCAM"]) and (spam_probability > 0.80)
 
         return {
             "is_spam": is_spam,
@@ -77,20 +79,21 @@ class DecisionEngine:
         }
 
     def _extract_and_check_urls(self, text: str) -> Dict[str, Any]:
-        """Extract URLs and evaluate using the Hardened URL Analyzer."""
-        url_matches = re.findall(
+        """Extract URLs, sanitize trailing punctuation, and evaluate using URL Analyzer."""
+        raw_matches = re.findall(
             r'https?://[^\s<>"]+|www\.[^\s<>"]+|\b[a-zA-Z0-9.-]+\.(?:xyz|top|site|club|online|apk|rest|buzz)\b',
             text,
             re.IGNORECASE
         )
         
-        for raw_url in url_matches:
-            url_res = url_analyzer.analyze(raw_url)
+        for raw_url in raw_matches:
+            clean_url = raw_url.rstrip(".,;!?:")
+            url_res = url_analyzer.analyze(clean_url)
             if url_res.get("status") == "Unsafe":
                 return {
                     "is_unsafe": True,
                     "score": url_res.get("score", 90.0),
-                    "reason": f"Malicious embedded link detected ({raw_url})"
+                    "reason": f"Malicious embedded link detected ({clean_url})"
                 }
         return {"is_unsafe": False, "score": 0.0, "reason": ""}
 
@@ -102,11 +105,11 @@ class DecisionEngine:
         heuristic_score: float,
         matched_rules: list
     ) -> str:
-        """Balanced determination to ensure Safe isn't suppressed."""
+        """Balanced determination ensuring official alerts and statements stay Safe."""
         has_safe_marker = bool(self.safe_tx_regex.search(text))
         has_threat_action = bool(self.threat_action_regex.search(text))
 
-        # 1. Transaction & Safe Format Safeguard
+        # 1. Transaction & Legitimate Statement Safeguard
         if has_safe_marker and not has_threat_action and rule_score == 0:
             return "Safe"
 
@@ -146,10 +149,10 @@ class DecisionEngine:
                 "recommendation": "Input is empty or clean."
             }
 
-        # Step 1: Normalize & Deobfuscate Text (Removes zero-width spaces, leetspeak)
+        # Step 1: Normalize & Deobfuscate Text
         text_clean = text_normalizer.deobfuscate(text)
 
-        # Step 2: Deep URL Interception inside Text
+        # Step 2: URL Sanitization & Deep Interception
         url_threat = self._extract_and_check_urls(text_clean)
         if url_threat["is_unsafe"]:
             return {
@@ -177,7 +180,7 @@ class DecisionEngine:
         )
 
         recommendations = {
-            "Safe": "This input appears legitimate and safe to interact with.",
+            "Safe": "This message is a verified service or transactional alert and is safe to interact with.",
             "Suspicious": "Caution advised. Do not share sensitive information or click untrusted links.",
             "Unsafe": "High risk detected. Do not click links, make payments, or download attachments."
         }
