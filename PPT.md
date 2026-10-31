@@ -30,26 +30,26 @@ Department of Computer Engineering
 
 # Slide 3: Problem Statement
 
-- Deceptive SMS messages, phishing URLs, malicious QR codes, and fake image banners are increasingly used to trick users into sharing personal data or money.
-- Most people rely on guesswork or manual inspection, which is slow, unreliable, and unsafe when scams are designed to look authentic.
-- Fraudulent digital content creates financial loss, identity theft, and social engineering risk for citizens, students, and online banking users.
+- Deceptive SMS messages, phishing URLs, malicious QR codes, and fake image banners are increasingly used to steal personal data, money, and credentials.
+- Most users rely on guesswork or manual verification, which is slow, unreliable, and unsafe when scams are designed to look authentic.
+- This creates financial loss, identity theft, and social-engineering risk for students, digital banking users, and everyday citizens.
 - Key statistic: “Over 70% of digital fraud attempts originate from unverified SMS, QR, and URL-based attacks.”
-- Current method: Manual reading and ad hoc URL checking without a structured verification workflow.
-- Main limitation: Lack of a unified, user-friendly, and automated multi-modal threat detection system.
-- Who benefits: Students, bankers, digital users, and general citizens in daily online transactions.
+- Current method: Manual inspection and ad hoc link checking with no unified verification workflow.
+- Main limitation: There is no single, user-friendly, multi-modal system that detects scam content across SMS, URL, QR, and image inputs.
+- Who benefits: Citizens, students, online banking users, and organizations seeking safer digital communication.
 
 ---
 
 # Slide 4: Objectives
 
 ### Objective 1
-Develop a multi-modal verification portal capable of analyzing SMS, URL, QR, and image/OCR inputs.
+Develop a multi-modal verification portal that can analyze SMS, URL, QR, and image/OCR inputs in one secure system.
 
 ### Objective 2
-Build a high-throughput Python FastAPI AI backend with heuristic and machine-learning-based threat detection rules.
+Build a high-throughput Python FastAPI AI backend with heuristic and rule-based threat checks for rapid scam detection.
 
 ### Objective 3
-Implement MongoDB audit logging, JWT authentication, and validate detection accuracy with a target of more than 90%.
+Implement MongoDB auditing, JWT authentication, and achieve detection accuracy above 90% with clear user recommendations.
 
 ---
 
@@ -58,12 +58,12 @@ Implement MongoDB audit logging, JWT authentication, and validate detection accu
 | Sr. No. | Source & Year | Method Used | Limitation / Gap |
 |---|---|---|---|
 | 1 | OWASP, 2024 | Security best practices for web and API threats | Not a direct scam detection system |
-| 2 | NIST, 2023 | Cybersecurity framework and risk guidance | Generalized; lacks domain-specific phishing logic |
-| 3 | FastAPI, 2024 | High-performance Python API architecture | Requires custom threat logic and validation |
-| 4 | Google Safe Browsing, 2024 | Blacklist/reputation-based URL security checks | Limited to URL reputation and not full multi-modal analysis |
+| 2 | NIST, 2023 | Cybersecurity framework and risk guidance | Generalized guidance; lacks domain-specific fraud logic |
+| 3 | FastAPI, 2024 | High-performance Python API architecture | Needs custom threat logic and validation pipeline |
+| 4 | Google Safe Browsing, 2024 | URL reputation and blacklist checks | Limited to URL analysis and not full multi-modal verification |
 
 ### Research Gap
-Existing tools focus on individual layers such as URL reputation or generic app security, but they do not provide one integrated portal that unifies smishing detection, QR validation, and OCR-based image scanning for the end user.
+Existing tools usually focus on isolated functions like URL reputation or generic web security, but they do not provide a single accessible platform that combines smishing detection, QR validation, and OCR-based image analysis into one trusted workflow.
 
 ---
 
@@ -88,7 +88,7 @@ Existing tools focus on individual layers such as URL reputation or generic app 
 - Status: Not selected
 
 ### Selection Justification
-A custom full-stack design offers full ownership, privacy control, open-source affordability, and a professional, scalable architecture suited for academic and real-world deployment.
+A custom full-stack system provides full ownership, strong privacy control, low cost, and complete flexibility to design a professional academic prototype and real-world deployment platform.
 
 ---
 
@@ -107,7 +107,7 @@ A custom full-stack design offers full ownership, privacy control, open-source a
 [MongoDB Database]
 ```
 
-Data flow: The frontend captures user input, forwards it to the AI backend for verification, and stores audit/log records in MongoDB for history and trust analysis.
+Data flow: The user enters SMS, URL, QR, or image content into the web frontend; the backend verifies it using AI and security rules; the result is displayed to the user and logged in MongoDB for history and audit review.
 
 ---
 
@@ -132,10 +132,10 @@ flowchart TD
 ```
 
 ### Key Architectural Points
-- Decoupled microservice architecture for modular API processing
-- JWT-based authentication and secured session handling
-- Pydantic validation for structured request entries
-- Unified result processing for multi-modal verification
+- Decoupled microservice design for modular API processing
+- JWT-based authentication and secure session handling
+- Pydantic validation for structured request inputs
+- Unified verdict generation for multi-modal scam detection
 
 ---
 
@@ -163,7 +163,7 @@ flowchart TD
 ```
 
 ### Detection Logic
-The backend extracts suspicious patterns such as urgency phrases, fake bank keywords, premium domain tricks, QR payload spoofing indicators, and OCR-based scam text before assigning a final verdict.
+The backend extracts suspicious phrases, urgency markers, fake banking cues, risky domains, malformed QR payloads, and OCR text patterns before assigning a final verdict and recommendation.
 
 ---
 
@@ -186,11 +186,9 @@ The backend extracts suspicious patterns such as urgency phrases, fake bank keyw
 |---|---|---|
 | 1-2 | Problem selection, literature review, feasibility analysis | - |
 | 3-4 | SRS preparation, solution selection, architecture planning | Seminar 1 |
-| 5-6 | UI layout, dashboard, backend APIs, database schema | Seminar 2 |
-| 7-8 | Core AI logic, QR/OCR integration, authentication setup | Seminar 2 |
-| 9-10 | Testing, bug fixing, UI refinements, performance improvements | Seminar 3 |
-| 11-12 | Documentation, enhancements, final validation | Seminar 3 |
-| 13-14 | Final report, PPT preparation, demo rehearsal, viva | Seminar 4 |
+| 5-8 | UI layout, dashboard development, backend APIs, database setup | Seminar 2 |
+| 9-11 | Core AI logic, testing, bug fixing, performance refinements | Seminar 3 |
+| 12-14 | Documentation, final validation, PPT preparation, demo rehearsal | Seminar 4 |
 
 ---
 
@@ -199,26 +197,26 @@ The backend extracts suspicious patterns such as urgency phrases, fake bank keyw
 ### CyberShield Verification Dashboard (Concept Preview)
 
 ```text
-+---------------------------------------------------------------+
++----------------------------------------------------------------+
 | CyberShield: Verification Portal                               |
-| [SMS] [URL] [QR] [Image OCR]        User: Admin                |
-+---------------------------------------------------------------+
-| Check Type: SMS                                                |
-| Enter Message: "Your bank account is blocked..."              |
-| [Analyze Message]                                              |
-|---------------------------------------------------------------|
-| Verdict: Unsafe                                                |
-| Risk Score: 92/100                                             |
-| Reason: Urgent bank alert + URL + fake transfer request        |
-| Recommendation: Do not click or share personal details         |
-+---------------------------------------------------------------+
+| [SMS] [URL] [QR] [Image OCR]      User: Admin                  |
++----------------------------------------------------------------+
+| Check Type: SMS                                                 |
+| Enter Message: "Your bank account is blocked..."               |
+| [Analyze Message]                                               |
+|----------------------------------------------------------------|
+| Verdict: Unsafe                                                 |
+| Risk Score: 92/100                                              |
+| Reason: Urgent bank alert + fake link + payment request         |
+| Recommendation: Do not click or share personal details          |
++----------------------------------------------------------------+
 ```
 
 ### 4 Build Steps
 1. Core API development for FastAPI text and URL analysis
 2. Next.js UI integration with tabbed scanner views and risk badges
 3. Authentication and database layer with JWT and MongoDB history
-4. Integration, deployment checks, and validation
+4. Integration, deployment checks, and final validation
 
 ---
 
@@ -233,7 +231,7 @@ The backend extracts suspicious patterns such as urgency phrases, fake bank keyw
 - OCR extraction latency: ~680 ms
 
 ### Observed Results
-The portal successfully classified safe, suspicious, and unsafe inputs with reliable performance and a strong user-friendly response flow.
+The portal classified safe, suspicious, and unsafe inputs reliably, while maintaining strong user experience and deterministic backend responses for scam detection.
 
 ---
 
@@ -241,30 +239,30 @@ The portal successfully classified safe, suspicious, and unsafe inputs with reli
 
 | Issue Found in Testing | Modification Made | Result After Change |
 |---|---|---|
-| Raw line breaks and hidden Unicode in SMS inputs | Added sanitization and normalization pipeline | Clean text parsing and better threat detection |
-| UI freeze during OCR image analysis | Converted HTTP bridge to async non-blocking fetch | Smooth and responsive user experience |
-| Unclear risk score explanation | Added verdict tags and recommendation details below badge | Better clarity for non-technical users |
+| Raw line breaks and hidden Unicode in SMS inputs | Added sanitization and normalization pipeline | Clean text parsing and stronger threat detection |
+| UI freeze during OCR image analysis | Converted HTTP bridge to async non-blocking fetch | Better user responsiveness |
+| Unclear risk score explanations | Added verdict tags and recommendation details below badge | Clearer output for non-technical users |
 
 ---
 
 # Slide 15: Conclusion and Future Scope
 
 ### Conclusion
-All three objectives were achieved: the project developed a multi-modal verification portal, implemented a FastAPI AI backend, and integrated secure database and history logging with authentication.
+All three project objectives were achieved: the system now provides a multi-modal verification portal, a Python FastAPI AI backend, and secure database logging with JWT-based authentication.
 
 ### Future Scope
-- Cloud deployment using Docker and continuous integration
+- Cloud deployment using Docker and CI/CD pipelines
 - Browser extension for real-time phishing link monitoring
 - Native mobile app with automatic SMS inbox scanning
-- Advanced threat intelligence and multilingual OCR support
+- Advanced multilingual OCR and expanded threat intelligence support
 
 ---
 
 # Slide 16: Startup, Grant and Patent Potential
 
-1. Startup Idea: Digital safety and anti-fraud portal for everyday citizens, students, and mobile banking users.
-2. Grant / Support: Suitable for Gujarat Student Startup and Innovation Policy (SSIP) prototype support and innovation funding.
-3. Patent Status: Strong novelty potential for the multi-modal verification pipeline and risk scoring engine workflow.
+1. Startup Idea: Digital safety and anti-fraud portal for students, citizens, and mobile banking users.
+2. Grant / Support: Strong suitability for Gujarat Student Startup and Innovation Policy (SSIP) prototype support and innovation funding.
+3. Patent Status: Novelty potential exists for the multi-modal verification workflow and risk-scoring engine methodology.
 
 ---
 
@@ -287,7 +285,7 @@ American Psychological Association (APA) 7 style:
 ## Q&A Discussion
 
 Thank you for your attention.  
-We would like to acknowledge the support of our guide, faculty, and institution.  
+We would like to acknowledge the support of our guide, faculty, and institution.
 
 Presenter Team: [Student Name(s)]  
 Guide: [Guide Name], [Designation]  
